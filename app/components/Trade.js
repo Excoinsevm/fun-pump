@@ -55,7 +55,7 @@ function Trade({ toggleTrade, token, provider, factory }) {
         <p className="disclaimer">target reached!</p>
       ) : (
         <form action={buyHandler}>
-          <input type="number" name="amount" min={1} max={10000} placeholder="1" />
+          <input type="number" name="amount" min={1} max={100000} placeholder="1" />
           <input type="submit" value="[ buy ]" />
         </form>
       )
