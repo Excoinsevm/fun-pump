@@ -5,11 +5,30 @@ import {Token} from "./Token.sol";
 
 import "hardhat/console.sol";
 
+interface IUniswapV2Router {
+    function addLiquidityETH(
+        address token,
+        uint256 amountTokenDesired,
+        uint256 amountTokenMin,
+        uint256 amountETHMin,
+        address to,
+        uint256 deadline
+    )
+        external
+        payable
+        returns (
+            uint256 amountToken,
+            uint256 amountETH,
+            uint256 liquidity
+        );
+}
+
 contract Factory {
-    uint256 public constant TARGET = 3 ether;
-    uint256 public constant TOKEN_LIMIT = 500_000 ether;
+    uint256 public constant TARGET = 10_000 ether;
+    uint256 public constant TOKEN_LIMIT = 800_000 ether;
     uint256 public immutable fee;
     address public owner;
+    address public uniswapRouter;
 
     uint256 public totalTokens;
     address[] public tokens;
@@ -27,9 +46,10 @@ contract Factory {
     event Created(address indexed token);
     event Buy(address indexed token, uint256 amount);
 
-    constructor(uint256 _fee) {
+    constructor(uint256 _fee, address _uniswapRouter) {
         fee = _fee;
         owner = msg.sender;
+        uniswapRouter = _uniswapRouter;
     }
 
     function getTokenSale(
@@ -39,8 +59,8 @@ contract Factory {
     }
 
     function getCost(uint256 _sold) public pure returns (uint256) {
-        uint256 floor = 0.0001 ether;
-        uint256 step = 0.0001 ether;
+        uint256 floor = 0.0025 ether;
+        uint256 step = 0.00001 ether;
         uint256 increment = 10000 ether;
 
         uint256 cost = (step * (_sold / increment)) + floor;
@@ -109,23 +129,31 @@ contract Factory {
     }
 
     function deposit(address _token) external {
-        // The remaining token balance and the ETH raised
-        // would go into a liquidity pool like Uniswap V3.
-        // For simplicity we'll just transfer remaining
-        // tokens and ETH raised to the creator.
+    // Fetch the token and its sale details
+    Token token = Token(_token);
+    TokenSale memory sale = tokenToSale[_token];
 
-        Token token = Token(_token);
-        TokenSale memory sale = tokenToSale[_token];
+    require(sale.isOpen == false, "Factory: Target not reached");
 
-        require(sale.isOpen == false, "Factory: Target not reached");
+    uint256 tokenBalance = token.balanceOf(address(this));
+    uint256 ethBalance = sale.raised;
 
-        // Transfer tokens
-        token.transfer(sale.creator, token.balanceOf(address(this)));
+    require(tokenBalance > 0 && ethBalance > 0, "Factory: Nothing to deposit");
 
-        // Transfer ETH raised
-        (bool success, ) = payable(sale.creator).call{value: sale.raised}("");
-        require(success, "Factory: ETH transfer failed");
-    }
+    // Approve the Uniswap Router to spend the tokens
+    token.approve(uniswapRouter, tokenBalance);
+
+    // Add liquidity to Uniswap and send LP tokens to the dead address
+    IUniswapV2Router(uniswapRouter).addLiquidityETH{value: ethBalance}(
+        _token,
+        tokenBalance,
+        0, // Min amount of tokens (slippage tolerance can be added)
+        0, // Min amount of ETH (slippage tolerance can be added)
+        0x000000000000000000000000000000000000dEaD, // Send LP tokens to dead address
+        block.timestamp + 3600 // Deadline: 1 hour
+    );
+}
+
 
     function withdraw(uint256 _amount) external {
         require(msg.sender == owner, "Factory: Not owner");
