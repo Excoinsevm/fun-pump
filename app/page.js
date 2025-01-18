@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ethers } from "ethers";
 
 // Components
 import Header from "./components/Header";
@@ -13,15 +12,21 @@ import Trade from "./components/Trade";
 import Factory from "./abis/Factory.json";
 import config from "./config.json";
 
+// Wagmi and RainbowKit
+import { WagmiConfig, useAccount } from "wagmi";
+import { RainbowKitProvider } from "@rainbow-me/rainbowkit";
+import wagmiConfig from "./wagmi";
+
 export default function Home() {
   const [provider, setProvider] = useState(null);
-  const [account, setAccount] = useState(null);
   const [factory, setFactory] = useState(null);
   const [fee, setFee] = useState(0);
   const [tokens, setTokens] = useState([]);
   const [token, setToken] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
   const [showTrade, setShowTrade] = useState(false);
+
+  const { address: account } = useAccount(); // Get the connected account from RainbowKit/Wagmi
 
   function toggleCreate() {
     setShowCreate((prevState) => !prevState);
@@ -33,6 +38,8 @@ export default function Home() {
   }
 
   async function loadBlockchainData() {
+    if (!window.ethereum) return;
+
     // Use MetaMask for connection
     const provider = new ethers.BrowserProvider(window.ethereum);
     setProvider(provider);
@@ -42,7 +49,7 @@ export default function Home() {
 
     // Create reference to Factory contract
     const factory = new ethers.Contract(
-      config[network.chainId].factory.address,
+      config[network.chainId]?.factory?.address,
       Factory,
       provider
     );
@@ -59,7 +66,6 @@ export default function Home() {
     for (let i = 0; i < totalTokens; i++) {
       const tokenSale = await factory.getTokenSale(i);
 
-      // Ensure the token data includes an `image` field.
       const token = {
         token: tokenSale.token,
         name: tokenSale.name,
@@ -67,7 +73,7 @@ export default function Home() {
         sold: tokenSale.sold,
         raised: tokenSale.raised,
         isOpen: tokenSale.isOpen,
-        image: tokenSale.image || "/default-image.png", // Fallback image if not set
+        image: tokenSale.image || "/default-image.png",
       };
 
       tokens.push(token);
@@ -82,57 +88,61 @@ export default function Home() {
   }, [showCreate, showTrade]);
 
   return (
-    <div className="page">
-      <Header account={account} setAccount={setAccount} />
+    <WagmiConfig config={wagmiConfig}>
+      <RainbowKitProvider chains={wagmiConfig.chains}>
+        <div className="page">
+          <Header />
 
-      <main>
-        <div className="create">
-          <button
-            onClick={factory && account && toggleCreate}
-            className="btn--fancy"
-          >
-            {!factory
-              ? "[ contract not deployed ]"
-              : !account
-              ? "[ please connect ]"
-              : "[ start a new token ]"}
-          </button>
-        </div>
+          <main>
+            <div className="create">
+              <button
+                onClick={factory && account && toggleCreate}
+                className="btn--fancy"
+              >
+                {!factory
+                  ? "[ contract not deployed ]"
+                  : !account
+                  ? "[ please connect ]"
+                  : "[ start a new token ]"}
+              </button>
+            </div>
 
-        <div className="listings">
-          <h1>new listings</h1>
+            <div className="listings">
+              <h1>new listings</h1>
 
-          <div className="tokens">
-            {!account ? (
-              <p>please connect wallet</p>
-            ) : tokens.length === 0 ? (
-              <p>No tokens listed</p>
-            ) : (
-              tokens.map((token, index) => (
-                <Token toggleTrade={toggleTrade} token={token} key={index} />
-              ))
+              <div className="tokens">
+                {!account ? (
+                  <p>please connect wallet</p>
+                ) : tokens.length === 0 ? (
+                  <p>No tokens listed</p>
+                ) : (
+                  tokens.map((token, index) => (
+                    <Token toggleTrade={toggleTrade} token={token} key={index} />
+                  ))
+                )}
+              </div>
+            </div>
+
+            {showCreate && (
+              <List
+                toggleCreate={toggleCreate}
+                fee={fee}
+                provider={provider}
+                factory={factory}
+              />
             )}
-          </div>
+
+            {showTrade && (
+              <Trade
+                toggleTrade={toggleTrade}
+                token={token}
+                provider={provider}
+                factory={factory}
+              />
+            )}
+          </main>
         </div>
-
-        {showCreate && (
-          <List
-            toggleCreate={toggleCreate}
-            fee={fee}
-            provider={provider}
-            factory={factory}
-          />
-        )}
-
-        {showTrade && (
-          <Trade
-            toggleTrade={toggleTrade}
-            token={token}
-            provider={provider}
-            factory={factory}
-          />
-        )}
-      </main>
-    </div>
+      </RainbowKitProvider>
+    </WagmiConfig>
   );
 }
