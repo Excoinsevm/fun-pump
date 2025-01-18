@@ -1,5 +1,3 @@
-"use client";
-
 import { Nabla } from "next/font/google";
 import { WagmiConfig } from "wagmi";
 import { RainbowKitProvider, darkTheme } from "@rainbow-me/rainbowkit";
