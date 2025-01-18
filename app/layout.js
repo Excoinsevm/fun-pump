@@ -1,7 +1,7 @@
 import { Nabla } from "next/font/google";
 import { WagmiConfig } from "wagmi";
 import { RainbowKitProvider, darkTheme } from "@rainbow-me/rainbowkit";
-import wagmiConfig from "../wagmi"; // Assuming wagmi.js is in the root directory
+import wagmiConfig from "./wagmi"; // Assuming wagmi.js is in the root directory
 import "@rainbow-me/rainbowkit/styles.css"; // Import RainbowKit styles
 import "./globals.css";
 
